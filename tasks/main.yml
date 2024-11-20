@@ -1,7 +1,7 @@
 ---
 # tasks file for base
 - name: Install base packages
-  ansible.builtin.yum:
+  ansible.builtin.apt:
     name: curl,wget,unzip,net-tools,dnsutils
     state: present
     update_cache: true
