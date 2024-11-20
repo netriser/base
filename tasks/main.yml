@@ -1,0 +1,10 @@
+---
+# tasks file for base
+- name: Install base packages
+  ansible.builtin.yum:
+    name: curl,wget,unzip,net-tools,dnsutils
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags:
+    - base
