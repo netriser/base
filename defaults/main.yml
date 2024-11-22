@@ -1,2 +1,8 @@
 ---
 # defaults file for base
+defaults_prerequisites_packages:
+  - curl
+  - wget
+  - unzip
+  - net-tools
+  - dnsutils
