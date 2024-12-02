@@ -6,3 +6,6 @@ defaults_prerequisites_packages:
   - unzip
   - net-tools
   - dnsutils
+  - apt-transport-https
+  - gnupg2
+  - lsb-release
