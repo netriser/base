@@ -11,7 +11,6 @@ An Ansible role to install and reconfigure default packages on a system.
 - Ansible 2.9 or higher.
 - Supported platforms:
   - **Debian-based systems:** Debian, Ubuntu.
-  - **RHEL-based systems:** CentOS, Rocky Linux, etc.
 
 ## Role Variables
 The following variables can be customized in your playbook or via extra-vars:
@@ -30,6 +29,18 @@ defaults_prerequisites_packages:
   - apt-transport-https
   - gnupg2
   - lsb-release
+```
+Example playbook:
+```yaml
+# Example playbook
+---
+- name: Install base packages
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  roles:
+  - base
 ```
 ## Dependencies
 None.
