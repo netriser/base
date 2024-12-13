@@ -8,7 +8,7 @@ An Ansible role to install and reconfigure default packages on a system.
 - Provides flexibility through variables for customization.
 
 ## Requirements
-- Ansible 2.9 or higher.
+- Ansible 2.1 or higher.
 - Supported platforms:
   - **Debian-based systems:** Debian, Ubuntu.
 
