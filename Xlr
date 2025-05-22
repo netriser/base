@@ -1,0 +1,128 @@
+
+from com.xebialabs.deployit.plugin.api.reflect import Type
+from xlrelease.api.v1 import ReleaseApi, TemplateApi, PhaseApi, TaskApi, VariableApi
+from xlrelease.api.v1.forms import Variable
+import time
+
+# === Initialisation des APIs ===
+releaseApi = ReleaseApi()
+templateApi = TemplateApi()
+phaseApi = PhaseApi()
+taskApi = TaskApi()
+variableApi = VariableApi()
+
+# === RÃ©cupÃ©ration du release courant ===
+current_release = releaseApi.getCurrentRelease()
+current_release_variables = releaseApi.getVariables(current_release.id)
+releaseVariables = {v.key: v for v in current_release_variables}
+
+# === Fonctions utilitaires ===
+
+def log(msg):
+    print("[XLRelease] " + msg)
+
+def get_cia_phases(code_cia):
+    cia_map = {
+        "ubp": "ubp_phases",
+        "vpp": "vpp_phases",
+        "val": "val_phases",
+        "ver": "ver_phases",
+        "perprod": "perprod_phases"
+    }
+    if code_cia not in cia_map:
+        raise Exception("Unknown CODE_CIA: %s" % code_cia)
+    return releaseVariables[cia_map[code_cia]].value
+
+def normalize_type(var_type):
+    if "date" in var_type.lower():
+        return "xlrelease.DateVariable"
+    return var_type
+
+def add_or_update_variable(current_vars, var, phase=None):
+    existing_keys = [v.key for v in current_vars]
+    new_var = Variable()
+    new_var.label = var.label
+    new_var.value = var.value
+    new_var.requiresValue = var.requiresValue
+    new_var.showOnReleaseStart = var.showOnReleaseStart
+    new_var.description = var.description
+    new_var.type = normalize_type(var.type)
+    new_var.key = var.key.replace("changeme", phase) if phase and "changeme" in var.key else var.key
+
+    if new_var.key in existing_keys:
+        for existing in current_vars:
+            if existing.key == new_var.key:
+                existing.value = var.value
+                releaseApi.updateVariable(existing)
+                log(f"Updated variable: {existing.key}")
+                return existing
+    else:
+        created = releaseApi.createVariable(current_release.id, new_var)
+        log(f"Created variable: {new_var.key}")
+        return created
+
+def attach_variables_to_task(task, task_vars, phase):
+    if not task_vars or len(task_vars) == 0:
+        task_vars = getattr(task, "templateVariables", [])
+
+    new_vars = []
+
+    for var in task_vars:
+        new_var = Variable()
+        new_var.label = var.label
+        new_var.value = var.value
+        new_var.requiresValue = var.requiresValue
+        new_var.showOnReleaseStart = var.showOnReleaseStart
+        new_var.description = var.description
+        new_var.type = normalize_type(var.type)
+        new_var.key = var.key.replace("changeme", phase) if phase and "changeme" in var.key else var.key
+
+        add_or_update_variable(current_release_variables, new_var, phase)
+        new_vars.append(new_var)
+
+    task.templateVariables = new_vars
+    taskApi.updateTask(task)
+
+def process_task(task, phase, parent_task=None):
+    if "Group" in task.type:
+        log(f"Traitement du groupe : {task.title}")
+        for subtask in task.container.tasks:
+            process_task(subtask, phase, task)
+    else:
+        if not parent_task:
+            new_title = task.title.replace("$env", phase).replace("${env}", phase).replace("(copy)", "")
+            task.setTitle(new_title)
+            taskApi.updateTask(task)
+
+        taskVariables = taskApi.getVariables(task.id)
+        if not taskVariables or len(taskVariables) == 0:
+            taskVariables = getattr(task, "templateVariables", [])
+
+        attach_variables_to_task(task, taskVariables, phase)
+        log(f"TÃ¢che copiÃ©e : {task.title} (Phase {phase})")
+
+def copy_tasks_to_phase(phase_name, source_phase):
+    new_phase = phaseApi.newPhase(phase_name.upper())
+    new_phase = phaseApi.addPhase(current_release.id, new_phase)
+
+    for task in source_phase.tasks:
+        copied = taskApi.copyTask(task, new_phase.id)
+        taskApi.updateTask(copied)
+        time.sleep(1)
+        process_task(copied, phase_name)
+
+# === ExÃ©cution principale ===
+code_cia = releaseVariables["CODE_CIA"].value.lower()
+phases = get_cia_phases(code_cia)
+log("Phases ciblÃ©es: " + str(phases))
+
+source_template = templateApi.getTemplateByTitle("Snow_Create")
+source_phase = source_template.phases[0]
+
+for phase in phases:
+    if phase.upper() in [p.title for p in current_release.phases]:
+        log(f"Phase {phase.upper()} dÃ©jÃ  existante. IgnorÃ©e.")
+        continue
+    copy_tasks_to_phase(phase, source_phase)
+
+log("Import terminÃ©.")
